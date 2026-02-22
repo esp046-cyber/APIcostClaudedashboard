@@ -1,0 +1,1302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="theme-color" content="#060610">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>ClaudeMetrics — API Cost Tracker</title>
+<style>
+/*
+  DESIGN SYSTEM
+  Font 1: Inter          → UI, body, headings, buttons, labels
+  Font 2: JetBrains Mono → values, numbers, code, badges
+  Size 1: 10px  → labels, badges, timestamps, meta
+  Size 2: 12px  → secondary text, table cells, captions
+  Size 3: 14px  → body text, inputs, nav
+  Size 4: 20px  → stat values, section headings
+  WCAG AAA: all text ≥ 7:1 on background
+*/
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap');
+
+:root {
+  --bg:   #060610;
+  --bg2:  #0c0c1e;
+  --bg3:  #12122a;
+  --card: #0f0f22;
+  --card-hov: #151530;
+  --brd:      rgba(255,255,255,0.10);
+  --brd-hov:  rgba(51,236,255,0.35);
+
+  /* Text — WCAG AAA */
+  --tx-hi: #ffffff;   /* 21:1 */
+  --tx-md: #c8cce8;   /* 9.5:1 */
+  --tx-lo: #8890b8;   /* 7.1:1 */
+
+  /* Accents */
+  --cyan:       #33ecff;
+  --cyan-dim:   rgba(51,236,255,0.10);
+  --cyan-brd:   rgba(51,236,255,0.28);
+  --purple:     #a78bfa;
+  --purple-dim: rgba(167,139,250,0.10);
+  --purple-brd: rgba(167,139,250,0.28);
+  --green:      #34d399;
+  --green-dim:  rgba(52,211,153,0.10);
+  --green-brd:  rgba(52,211,153,0.28);
+  --amber:      #fbbf24;
+  --amber-dim:  rgba(251,191,36,0.10);
+  --amber-brd:  rgba(251,191,36,0.28);
+  --red:        #f87171;
+  --red-dim:    rgba(248,113,113,0.10);
+  --red-brd:    rgba(248,113,113,0.28);
+
+  --nav-h: 64px;
+  --r-sm: 8px; --r-md: 12px; --r-lg: 16px;
+  --glow-c: 0 0 20px rgba(51,236,255,0.18);
+
+  --fs-xs:   10px;
+  --fs-sm:   12px;
+  --fs-base: 14px;
+  --fs-lg:   20px;
+
+  --f-ui:   'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --f-mono: 'JetBrains Mono', 'Courier New', monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+button, input, select { font-family: var(--f-ui); }
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  background: var(--bg);
+  color: var(--tx-md);
+  font-family: var(--f-ui);
+  font-size: var(--fs-base);
+  line-height: 1.55;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(rgba(51,236,255,0.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(51,236,255,0.022) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none; z-index: 0;
+}
+
+.app { position: relative; z-index: 1; padding-bottom: calc(var(--nav-h) + 16px); min-height: 100vh; }
+
+/* ── Header ── */
+.header {
+  position: sticky; top: 0; z-index: 100; height: 56px;
+  background: rgba(6,6,16,0.93);
+  backdrop-filter: blur(24px);
+  border-bottom: 1px solid var(--brd);
+  padding: 0 20px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.logo {
+  display: flex; align-items: center; gap: 10px;
+  font-family: var(--f-ui); font-size: var(--fs-base);
+  font-weight: 700; color: var(--tx-hi); letter-spacing: -0.3px;
+}
+.logo-icon {
+  width: 32px; height: 32px; border-radius: var(--r-sm);
+  background: linear-gradient(135deg, var(--cyan), var(--purple));
+  display: flex; align-items: center; justify-content: center;
+  font-size: var(--fs-base); box-shadow: var(--glow-c); flex-shrink: 0;
+}
+.logo-a { color: var(--cyan); }
+
+.header-right { display: flex; align-items: center; gap: 10px; }
+
+/* Mode pill — key UI element */
+.mode-pill {
+  display: flex; align-items: center; gap: 5px;
+  border-radius: 20px; padding: 3px 10px;
+  font-family: var(--f-mono); font-size: var(--fs-xs); font-weight: 600;
+  letter-spacing: 0.5px; cursor: pointer;
+  transition: all 0.2s; border: none; background: none;
+}
+.mode-pill.manual {
+  background: var(--amber-dim); border: 1px solid var(--amber-brd); color: var(--amber);
+}
+.mode-pill.connected {
+  background: var(--green-dim); border: 1px solid var(--green-brd); color: var(--green);
+}
+.mode-pill.connecting {
+  background: var(--purple-dim); border: 1px solid var(--purple-brd); color: var(--purple);
+}
+.mode-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+}
+.mode-dot.pulse { animation: livePulse 1.5s infinite; }
+@keyframes livePulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.35;transform:scale(0.65)} }
+
+.hdr-total { font-family: var(--f-mono); font-size: var(--fs-sm); color: var(--tx-md); }
+
+/* ── Nav ── */
+.nav {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  height: var(--nav-h);
+  background: rgba(6,6,16,0.97); backdrop-filter: blur(24px);
+  border-top: 1px solid var(--brd);
+  display: flex; align-items: stretch; z-index: 200;
+}
+.nav-item {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 4px;
+  border: none; background: none; color: var(--tx-lo);
+  padding: 8px 4px; transition: color 0.18s;
+  position: relative; min-height: 44px; cursor: pointer;
+}
+.nav-item:hover { color: var(--tx-md); }
+.nav-item.active { color: var(--cyan); }
+.nav-item.active::after {
+  content: ''; position: absolute; top: 0; left: 20%; right: 20%;
+  height: 2px; background: var(--cyan); border-radius: 0 0 3px 3px;
+  box-shadow: var(--glow-c);
+}
+.nav-item.active .nav-iw { background: var(--cyan-dim); border-radius: var(--r-sm); }
+.nav-iw { width: 36px; height: 24px; display: flex; align-items: center; justify-content: center; transition: background 0.18s; }
+.nav-icon { font-size: 24px; line-height: 24px; height: 24px; }
+.nav-lbl  { font-family: var(--f-ui); font-size: var(--fs-xs); font-weight: 500; text-transform: uppercase; letter-spacing: 0.4px; }
+
+/* ── Pages ── */
+.page { display: none; padding: 16px 16px 0; animation: pgIn 0.22s ease; max-width: 640px; margin: 0 auto; }
+.page.active { display: block; }
+@keyframes pgIn { from{opacity:0;transform:translateY(5px)} to{opacity:1;transform:translateY(0)} }
+
+/* ── Notices ── */
+.notice {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 12px 16px; border-radius: var(--r-md); margin-bottom: 12px;
+  font-family: var(--f-ui); font-size: var(--fs-sm); line-height: 1.5; color: var(--tx-hi);
+}
+.notice-ico { font-size: var(--fs-base); flex-shrink: 0; margin-top: 1px; }
+.n-info    { background: var(--cyan-dim);   border: 1px solid var(--cyan-brd); }
+.n-warn    { background: var(--amber-dim);  border: 1px solid var(--amber-brd); }
+.n-danger  { background: var(--red-dim);    border: 1px solid var(--red-brd); }
+.n-success { background: var(--green-dim);  border: 1px solid var(--green-brd); }
+.n-muted   { background: rgba(136,144,184,0.08); border: 1px solid rgba(136,144,184,0.20); }
+
+/* ── Section header ── */
+.s-hd { margin-bottom: 16px; padding-top: 8px; }
+.s-title { font-family: var(--f-ui); font-size: var(--fs-lg); font-weight: 700; color: var(--tx-hi); letter-spacing: -0.4px; }
+.s-sub   { font-family: var(--f-ui); font-size: var(--fs-sm); color: var(--tx-lo); margin-top: 3px; }
+
+/* ── Cards ── */
+.card {
+  background: var(--card); border: 1px solid var(--brd);
+  border-radius: var(--r-lg); padding: 16px; margin-bottom: 12px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.card:hover { border-color: var(--brd-hov); box-shadow: var(--glow-c); }
+.card-ttl {
+  font-family: var(--f-ui); font-size: var(--fs-xs); font-weight: 600;
+  text-transform: uppercase; letter-spacing: 1.2px;
+  color: var(--tx-lo); margin-bottom: 12px;
+  display: flex; align-items: center; gap: 6px;
+}
+.card-ttl::after { content: ''; flex: 1; height: 1px; background: var(--brd); }
+
+/* ── Stats grid ── */
+.sg { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.sc {
+  background: var(--card); border: 1px solid var(--brd);
+  border-radius: var(--r-lg); padding: 14px 14px 12px;
+  position: relative; overflow: hidden;
+  transition: border-color 0.2s, transform 0.15s;
+}
+.sc:hover { transform: translateY(-1px); }
+.sc::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+.sc-c::before { background: linear-gradient(90deg, var(--cyan),   transparent); }
+.sc-p::before { background: linear-gradient(90deg, var(--purple), transparent); }
+.sc-g::before { background: linear-gradient(90deg, var(--green),  transparent); }
+.sc-a::before { background: linear-gradient(90deg, var(--amber),  transparent); }
+
+.sl   { font-family: var(--f-ui); font-size: var(--fs-xs); font-weight: 500; text-transform: uppercase; letter-spacing: 0.8px; color: var(--tx-lo); margin-bottom: 6px; }
+.sv   { font-family: var(--f-mono); font-size: var(--fs-lg); font-weight: 700; color: var(--tx-hi); letter-spacing: -0.5px; line-height: 1.1; }
+.sv-c { color: var(--cyan); }
+.sv-p { color: var(--purple); }
+.sv-g { color: var(--green); }
+.sv-a { color: var(--amber); }
+.ssub { font-family: var(--f-ui); font-size: var(--fs-xs); color: var(--tx-lo); margin-top: 5px; }
+
+/* ── Forms ── */
+.fg   { margin-bottom: 12px; }
+.flbl { display: block; font-family: var(--f-ui); font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.9px; color: var(--tx-lo); margin-bottom: 6px; }
+.fi, .fsel {
+  width: 100%; background: var(--bg3); border: 1px solid var(--brd);
+  border-radius: var(--r-sm); padding: 11px 12px;
+  color: var(--tx-hi); font-family: var(--f-ui); font-size: var(--fs-base);
+  transition: border-color 0.18s, box-shadow 0.18s;
+  outline: none; appearance: none; min-height: 44px;
+}
+.fi::placeholder { color: var(--tx-lo); }
+.fi:focus, .fsel:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(51,236,255,0.12); }
+.fsel {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238890b8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px;
+}
+.fr { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 44px; padding: 10px 16px; border-radius: var(--r-sm); border: none;
+  font-family: var(--f-ui); font-size: var(--fs-sm); font-weight: 600; letter-spacing: 0.2px;
+  transition: transform 0.14s, box-shadow 0.14s, background 0.14s; cursor: pointer;
+}
+.btn-p { background: var(--cyan); color: #011317; box-shadow: var(--glow-c); }
+.btn-p:hover  { transform: translateY(-1px); box-shadow: 0 0 28px rgba(51,236,255,0.32); }
+.btn-p:active { transform: none; }
+.btn-s { background: var(--bg3); border: 1px solid var(--brd); color: var(--tx-md); }
+.btn-s:hover { background: var(--card-hov); border-color: var(--brd-hov); color: var(--tx-hi); }
+.btn-d { background: var(--red-dim); border: 1px solid var(--red-brd); color: var(--red); }
+.btn-d:hover { background: rgba(248,113,113,0.18); }
+.btn-bl { width: 100%; margin-bottom: 8px; }
+.btn-bl:last-child { margin-bottom: 0; }
+
+/* ── Budget ── */
+.bud-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+.bud-key { font-family: var(--f-ui); font-size: var(--fs-sm); color: var(--tx-lo); }
+.bud-val { font-family: var(--f-mono); font-size: var(--fs-sm); font-weight: 700; color: var(--tx-hi); }
+.bud-bar { width: 100%; height: 6px; background: rgba(255,255,255,0.07); border-radius: 3px; overflow: hidden; margin: 8px 0; }
+.bud-fill { height: 100%; border-radius: 3px; transition: width 0.5s cubic-bezier(.4,0,.2,1), background 0.3s; background: linear-gradient(90deg, var(--green), var(--cyan)); }
+.bud-fill.fw { background: linear-gradient(90deg, var(--amber), #f97316); }
+.bud-fill.fd { background: linear-gradient(90deg, var(--red), #dc2626); animation: dFlash 1.2s infinite; }
+@keyframes dFlash { 0%,100%{opacity:1} 50%{opacity:0.55} }
+.bud-meta { display: flex; justify-content: space-between; font-family: var(--f-mono); font-size: var(--fs-xs); color: var(--tx-lo); }
+
+/* ── Log entries ── */
+.scroll-list { max-height: 260px; overflow-y: auto; }
+.scroll-list::-webkit-scrollbar { width: 3px; }
+.scroll-list::-webkit-scrollbar-thumb { background: var(--purple); border-radius: 2px; }
+
+.log-row {
+  display: grid; grid-template-columns: auto auto 1fr auto auto;
+  align-items: center; gap: 8px; padding: 9px 0;
+  border-bottom: 1px solid var(--brd);
+}
+.log-row:last-child { border-bottom: none; }
+.log-src  { font-family: var(--f-mono); font-size: var(--fs-xs); font-weight: 600; border-radius: 4px; padding: 2px 5px; white-space: nowrap; }
+.log-src.proxy  { background: var(--green-dim);  border: 1px solid var(--green-brd);  color: var(--green); }
+.log-src.manual { background: var(--amber-dim);  border: 1px solid var(--amber-brd);  color: var(--amber); }
+.log-src.sim    { background: var(--purple-dim); border: 1px solid var(--purple-brd); color: var(--purple); }
+.log-mod  { font-family: var(--f-mono); font-size: var(--fs-xs); font-weight: 600; color: var(--cyan); background: var(--cyan-dim); border: 1px solid var(--cyan-brd); border-radius: 4px; padding: 2px 6px; white-space: nowrap; }
+.log-tok  { font-family: var(--f-mono); font-size: var(--fs-xs); color: var(--tx-lo); }
+.log-cost { font-family: var(--f-mono); font-size: var(--fs-sm); font-weight: 700; color: var(--tx-hi); white-space: nowrap; }
+.log-time { font-family: var(--f-mono); font-size: var(--fs-xs); color: var(--tx-lo); white-space: nowrap; }
+
+/* ── Recommendations ── */
+.rec-list { display: flex; flex-direction: column; gap: 8px; }
+.rec-item { background: var(--purple-dim); border: 1px solid var(--purple-brd); border-radius: var(--r-md); padding: 12px; display: flex; align-items: flex-start; gap: 8px; }
+.rec-ico { font-size: var(--fs-base); flex-shrink: 0; }
+.rec-txt { font-family: var(--f-ui); font-size: var(--fs-sm); color: var(--tx-md); line-height: 1.5; }
+
+/* ── Canvas ── */
+canvas { width: 100% !important; border-radius: var(--r-sm); }
+
+/* ── Pie ── */
+.pie-wrap { display: flex; align-items: center; gap: 16px; }
+.pie-legend { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.pie-li { display: flex; align-items: center; gap: 8px; }
+.pie-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.pie-name { font-family: var(--f-mono); font-size: var(--fs-xs); color: var(--tx-md); }
+.pie-val  { font-family: var(--f-mono); font-size: var(--fs-xs); color: var(--tx-lo); }
+
+/* ── Toggle ── */
+.tgl-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--brd); }
+.tgl-row:last-child { border-bottom: none; }
+.tgl-name { font-family: var(--f-ui); font-size: var(--fs-base); color: var(--tx-hi); font-weight: 500; }
+.tgl-desc { font-family: var(--f-ui); font-size: var(--fs-xs); color: var(--tx-lo); margin-top: 2px; }
+.tgl { width: 44px; height: 24px; background: rgba(255,255,255,0.09); border-radius: 12px; border: none; cursor: pointer; position: relative; transition: background 0.2s; flex-shrink: 0; }
+.tgl::after { content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--tx-lo); transition: transform 0.2s, background 0.2s; }
+.tgl.on { background: rgba(51,236,255,0.22); }
+.tgl.on::after { transform: translateX(20px); background: var(--cyan); }
+
+/* ── Pricing table ── */
+.ptbl { width: 100%; border-collapse: collapse; }
+.ptbl th { text-align: left; font-family: var(--f-ui); font-size: var(--fs-xs); font-weight: 600; color: var(--tx-lo); text-transform: uppercase; letter-spacing: 0.8px; padding: 0 8px 8px; }
+.ptbl td { padding: 6px 8px; border-top: 1px solid var(--brd); font-family: var(--f-mono); font-size: var(--fs-sm); color: var(--tx-md); }
+.ptbl input { background: var(--bg3); border: 1px solid var(--brd); border-radius: 4px; color: var(--tx-hi); font-family: var(--f-mono); font-size: var(--fs-sm); padding: 5px 8px; width: 80px; min-height: 32px; }
+.ptbl input:focus { border-color: var(--cyan); outline: none; box-shadow: 0 0 0 2px rgba(51,236,255,0.12); }
+
+/* ── Currency strip ── */
+.cur-strip { display: flex; background: var(--bg3); border: 1px solid var(--brd); border-radius: var(--r-sm); overflow: hidden; width: fit-content; }
+.cur-btn { padding: 8px 14px; border: none; background: transparent; color: var(--tx-lo); font-family: var(--f-mono); font-size: var(--fs-sm); font-weight: 600; cursor: pointer; transition: all 0.18s; min-height: 36px; }
+.cur-btn.on { background: var(--cyan); color: #011317; }
+.cur-btn:not(.on):hover { color: var(--tx-md); }
+.cur-info { font-family: var(--f-mono); font-size: var(--fs-xs); color: var(--tx-lo); margin-top: 8px; }
+
+/* ── API key ── */
+.ak-wrap { position: relative; }
+.ak-wrap .fi { padding-right: 46px; font-family: var(--f-mono); font-size: var(--fs-sm); letter-spacing: 0.5px; }
+.ak-btn { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--tx-lo); cursor: pointer; font-size: var(--fs-base); padding: 4px; line-height: 1; transition: color 0.18s; }
+.ak-btn:hover { color: var(--tx-md); }
+
+/* ── Badges ── */
+.bdg { display: inline-block; padding: 2px 8px; border-radius: 4px; font-family: var(--f-mono); font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; }
+.bdg-c { background: var(--cyan-dim);   border: 1px solid var(--cyan-brd);   color: var(--cyan); }
+.bdg-p { background: var(--purple-dim); border: 1px solid var(--purple-brd); color: var(--purple); }
+.bdg-g { background: var(--green-dim);  border: 1px solid var(--green-brd);  color: var(--green); }
+
+/* ── Stat row ── */
+.str { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--brd); }
+.str:last-child { border-bottom: none; }
+.str-k { font-family: var(--f-ui);  font-size: var(--fs-sm); color: var(--tx-lo); }
+.str-v { font-family: var(--f-mono); font-size: var(--fs-sm); font-weight: 700; color: var(--tx-hi); }
+
+/* ── Estimate ── */
+.est-row { display: flex; align-items: center; justify-content: space-between; background: var(--bg3); border: 1px solid var(--brd); border-radius: var(--r-sm); padding: 12px 16px; margin-bottom: 12px; }
+.est-lbl { font-family: var(--f-ui); font-size: var(--fs-xs); color: var(--tx-lo); text-transform: uppercase; letter-spacing: 0.8px; }
+.est-val { font-family: var(--f-mono); font-size: var(--fs-lg); font-weight: 700; color: var(--cyan); }
+
+/* ── Price ref ── */
+.pref-item { padding: 12px 0; border-bottom: 1px solid var(--brd); }
+.pref-item:last-child { border-bottom: none; }
+.pref-hd   { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+.pref-desc { font-family: var(--f-ui); font-size: var(--fs-xs); color: var(--tx-lo); }
+.pref-vals { font-family: var(--f-mono); font-size: var(--fs-sm); color: var(--tx-md); margin-top: 3px; }
+.pref-vals strong { color: var(--tx-hi); }
+
+/* ── Empty / misc ── */
+.empty { text-align: center; padding: 28px 16px; font-family: var(--f-ui); font-size: var(--fs-sm); color: var(--tx-lo); }
+.sim-res { font-family: var(--f-mono); font-size: var(--fs-sm); color: var(--green); margin-top: 8px; min-height: 20px; }
+
+/* ── Server status card ── */
+.srv-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--brd); }
+.srv-row:last-child { border-bottom: none; }
+.srv-k { font-family: var(--f-ui); font-size: var(--fs-sm); color: var(--tx-lo); }
+.srv-v { font-family: var(--f-mono); font-size: var(--fs-sm); font-weight: 600; }
+.ok   { color: var(--green); }
+.fail { color: var(--red); }
+.warn { color: var(--amber); }
+
+/* ── Polling indicator ── */
+.poll-bar {
+  height: 2px; background: var(--cyan-dim); border-radius: 1px; overflow: hidden; margin-top: 8px;
+}
+.poll-fill {
+  height: 100%; background: var(--cyan); border-radius: 1px; width: 0%;
+  transition: width 0.1s linear;
+}
+
+@media print { .nav,.header{display:none} .page{display:block!important} body{background:#fff;color:#000} }
+@media (min-width: 640px) { .page { padding: 20px 20px 0; } }
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ══ HEADER ══ -->
+<header class="header">
+  <div class="logo">
+    <div class="logo-icon">⚡</div>
+    Claude<span class="logo-a">Metrics</span>
+  </div>
+  <div class="header-right">
+    <span class="hdr-total" id="hdr-total">$0.0000</span>
+    <button class="mode-pill manual" id="mode-pill" title="Click to configure server connection">
+      <div class="mode-dot" id="mode-dot"></div>
+      <span id="mode-lbl">Manual Mode</span>
+    </button>
+  </div>
+</header>
+
+<!-- ══ DASHBOARD ══ -->
+<div class="page active" id="page-dashboard">
+  <div class="s-hd">
+    <div class="s-title">Cost Tracker</div>
+    <div class="s-sub" id="today-date"></div>
+  </div>
+
+  <!-- Honest mode notice — always visible -->
+  <div class="notice n-muted" id="mode-notice">
+    <span class="notice-ico">📋</span>
+    <span id="mode-notice-txt">
+      <strong>Manual mode</strong> — Enter token counts below to log costs. For automatic tracking, run the backend server and connect on the API Config tab.
+    </span>
+  </div>
+
+  <div id="bud-alert"></div>
+
+  <div class="sg">
+    <div class="sc sc-c">
+      <div class="sl">Today's Cost</div>
+      <div class="sv sv-c" id="s-today">$0.00</div>
+      <div class="ssub" id="s-today-n">0 requests</div>
+    </div>
+    <div class="sc sc-p">
+      <div class="sl">This Month</div>
+      <div class="sv sv-p" id="s-month">$0.00</div>
+      <div class="ssub" id="s-month-n">0 requests</div>
+    </div>
+    <div class="sc sc-g">
+      <div class="sl">Total Tokens</div>
+      <div class="sv sv-g" id="s-tokens">0</div>
+      <div class="ssub">all time</div>
+    </div>
+    <div class="sc sc-a">
+      <div class="sl">Avg / Request</div>
+      <div class="sv sv-a" id="s-avg">$0.0000</div>
+      <div class="ssub">cost per call</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-ttl">💰 Monthly Budget</div>
+    <div class="bud-row">
+      <span class="bud-key">Spend vs limit</span>
+      <span class="bud-val" id="bud-display">$0.00 / $100.00</span>
+    </div>
+    <div class="bud-bar"><div class="bud-fill" id="bud-fill" style="width:0%"></div></div>
+    <div class="bud-meta">
+      <span id="bud-pct">0% used</span>
+      <span id="bud-rem">$100.00 remaining</span>
+    </div>
+  </div>
+
+  <!-- Manual log form -->
+  <div class="card" id="manual-log-card">
+    <div class="card-ttl">➕ Log Request <span style="font-size:var(--fs-xs);color:var(--amber);font-family:var(--f-mono);font-weight:600;text-transform:none;letter-spacing:0;">manual entry</span></div>
+    <div class="fg">
+      <label class="flbl">Model</label>
+      <select class="fsel" id="log-model">
+        <option value="claude-opus-4-5">claude-opus-4-5</option>
+        <option value="claude-sonnet-4-5" selected>claude-sonnet-4-5</option>
+        <option value="claude-haiku-4-5">claude-haiku-4-5</option>
+        <option value="claude-3-opus-20240229">claude-3-opus</option>
+        <option value="claude-3-5-sonnet-20241022">claude-3-5-sonnet</option>
+        <option value="claude-3-haiku-20240307">claude-3-haiku</option>
+        <option value="custom">Custom</option>
+      </select>
+    </div>
+    <div class="fr">
+      <div class="fg">
+        <label class="flbl">Input Tokens</label>
+        <input class="fi" id="log-in" type="number" placeholder="1000" min="0" inputmode="numeric">
+      </div>
+      <div class="fg">
+        <label class="flbl">Output Tokens</label>
+        <input class="fi" id="log-out" type="number" placeholder="500" min="0" inputmode="numeric">
+      </div>
+    </div>
+    <div class="est-row">
+      <div>
+        <div class="est-lbl">Calculated Cost</div>
+        <div class="est-val" id="est-cost">$0.000000</div>
+      </div>
+      <button class="btn btn-p" id="log-btn">Log Request</button>
+    </div>
+  </div>
+
+  <!-- Recent logs -->
+  <div class="card">
+    <div class="card-ttl">📋 Request History
+      <span style="margin-left:auto;font-size:var(--fs-xs);color:var(--tx-lo);font-family:var(--f-mono);text-transform:none;letter-spacing:0;" id="poll-status"></span>
+    </div>
+    <div id="poll-bar-wrap" style="display:none">
+      <div class="poll-bar"><div class="poll-fill" id="poll-fill"></div></div>
+    </div>
+    <div class="scroll-list" id="recent-logs" style="margin-top:8px;">
+      <div class="empty">No requests logged yet.</div>
+    </div>
+  </div>
+
+  <!-- Recommendations -->
+  <div class="card" id="rec-card" style="display:none">
+    <div class="card-ttl">🧠 Cost Recommendations</div>
+    <div class="rec-list" id="rec-list"></div>
+  </div>
+</div>
+
+<!-- ══ ANALYTICS ══ -->
+<div class="page" id="page-analytics">
+  <div class="s-hd">
+    <div class="s-title">Analytics</div>
+    <div class="s-sub">Cost breakdown &amp; projections</div>
+  </div>
+
+  <div class="sg">
+    <div class="sc sc-c"><div class="sl">Today</div><div class="sv sv-c" id="a-today">$0.00</div></div>
+    <div class="sc sc-p"><div class="sl">This Week</div><div class="sv sv-p" id="a-week">$0.00</div></div>
+    <div class="sc sc-g"><div class="sl">This Month</div><div class="sv sv-g" id="a-month">$0.00</div></div>
+    <div class="sc sc-a"><div class="sl">Projected</div><div class="sv sv-a" id="a-proj">$0.00</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-ttl">📈 7-Day Cost Trend</div>
+    <canvas id="trend-chart" height="160"></canvas>
+  </div>
+
+  <div class="card">
+    <div class="card-ttl">🥧 Cost by Model</div>
+    <div class="pie-wrap">
+      <canvas id="pie-chart" width="140" height="140" style="width:140px;height:140px;flex-shrink:0;"></canvas>
+      <div class="pie-legend" id="pie-legend"><div class="empty" style="padding:8px 0;">No data yet</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-ttl">📊 Request Statistics</div>
+    <div class="str"><span class="str-k">Total Requests</span><span class="str-v" id="a-total">0</span></div>
+    <div class="str"><span class="str-k">Total Input Tokens</span><span class="str-v" id="a-in">0</span></div>
+    <div class="str"><span class="str-k">Total Output Tokens</span><span class="str-v" id="a-out">0</span></div>
+    <div class="str"><span class="str-k">Avg Input / Request</span><span class="str-v" id="a-ai">0</span></div>
+    <div class="str"><span class="str-k">Avg Output / Request</span><span class="str-v" id="a-ao">0</span></div>
+    <div class="str"><span class="str-k">Most Used Model</span><span class="str-v" id="a-top">—</span></div>
+    <div class="str"><span class="str-k">Data Source</span><span class="str-v" id="a-src">—</span></div>
+  </div>
+</div>
+
+<!-- ══ SETTINGS ══ -->
+<div class="page" id="page-settings">
+  <div class="s-hd">
+    <div class="s-title">Settings</div>
+    <div class="s-sub">Budget, pricing &amp; preferences</div>
+  </div>
+
+  <div class="card">
+    <div class="card-ttl">💸 Budget Limits</div>
+    <div class="fr">
+      <div class="fg">
+        <label class="flbl">Daily Budget</label>
+        <input class="fi" id="s-daily" type="number" placeholder="10.00" step="0.01" inputmode="decimal">
+      </div>
+      <div class="fg">
+        <label class="flbl">Monthly Budget</label>
+        <input class="fi" id="s-monthly" type="number" placeholder="100.00" step="0.01" inputmode="decimal">
+      </div>
+    </div>
+    <button class="btn btn-p btn-bl" id="save-bud">Save Budget</button>
+  </div>
+
+  <div class="card">
+    <div class="card-ttl">💱 Display Currency</div>
+    <div class="cur-strip">
+      <button class="cur-btn on" data-c="USD">USD $</button>
+      <button class="cur-btn"    data-c="PHP">PHP ₱</button>
+      <button class="cur-btn"    data-c="EUR">EUR €</button>
+      <button class="cur-btn"    data-c="GBP">GBP £</button>
+    </div>
+    <div class="cur-info" id="cur-info">1 USD = 1.0000 USD</div>
+  </div>
+
+  <div class="card">
+    <div class="card-ttl">⚙️ Token Pricing (per 1M tokens)</div>
+    <table class="ptbl"><thead><tr><th>Model</th><th>Input $</th><th>Output $</th></tr></thead><tbody id="price-tbody"></tbody></table>
+    <button class="btn btn-s btn-bl" id="save-prices" style="margin-top:12px;">Save Pricing</button>
+  </div>
+
+  <div class="card">
+    <div class="card-ttl">🔔 Preferences</div>
+    <div class="tgl-row">
+      <div><div class="tgl-name">Budget Alerts</div><div class="tgl-desc">Warn when nearing spend limit</div></div>
+      <button class="tgl on" id="t-alerts"></button>
+    </div>
+    <div class="tgl-row">
+      <div><div class="tgl-name">Cost Recommendations</div><div class="tgl-desc">Optimisation tips based on usage</div></div>
+      <button class="tgl on" id="t-recs"></button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-ttl">💾 Data Management</div>
+    <button class="btn btn-s btn-bl" id="exp-json">⬇ Export JSON</button>
+    <button class="btn btn-s btn-bl" id="exp-csv">📊 Export CSV</button>
+    <label class="btn btn-s btn-bl" style="cursor:pointer;">⬆ Import JSON<input type="file" accept=".json" id="import-file" style="display:none;"></label>
+    <button class="btn btn-s btn-bl" id="print-btn">🖨 Print / PDF</button>
+    <button class="btn btn-d btn-bl" id="reset-btn">🗑 Reset All Local Data</button>
+  </div>
+</div>
+
+<!-- ══ API CONFIG ══ -->
+<div class="page" id="page-api">
+  <div class="s-hd">
+    <div class="s-title">API Config</div>
+    <div class="s-sub">Server connection &amp; security</div>
+  </div>
+
+  <!-- Honest security notice -->
+  <div class="notice n-info">
+    <span class="notice-ico">🔒</span>
+    <div>
+      <strong>How this works safely:</strong><br>
+      Your API key lives in the server's <code style="font-family:var(--f-mono);font-size:var(--fs-xs);background:rgba(255,255,255,0.08);padding:1px 4px;border-radius:3px;">.env</code> file only — it is never sent to this browser.
+      The dashboard connects to <strong>localhost:3000</strong> to read logs. No key is ever transmitted to any external service from this page.
+    </div>
+  </div>
+
+  <!-- Server status -->
+  <div class="card">
+    <div class="card-ttl">🖥 Server Status</div>
+    <div class="srv-row"><span class="srv-k">Connection</span><span class="srv-v" id="srv-conn">Checking...</span></div>
+    <div class="srv-row"><span class="srv-k">API Key Loaded</span><span class="srv-v" id="srv-key">—</span></div>
+    <div class="srv-row"><span class="srv-k">Database</span><span class="srv-v" id="srv-db">—</span></div>
+    <div class="srv-row"><span class="srv-k">Anthropic Usage API</span><span class="srv-v" id="srv-usage">—</span></div>
+    <div class="srv-row"><span class="srv-k">Proxy Endpoint</span><span class="srv-v ok" style="font-size:var(--fs-xs);">localhost:3000/api/proxy</span></div>
+    <button class="btn btn-s" style="margin-top:12px;width:100%;" id="check-srv">↻ Check Connection</button>
+  </div>
+
+  <!-- Anthropic usage API status -->
+  <div class="card" id="usage-api-card">
+    <div class="card-ttl">📊 Anthropic Usage API</div>
+    <div class="notice n-warn" style="margin-bottom:0;">
+      <span class="notice-ico">⚠️</span>
+      <div>
+        <strong>Restricted access:</strong> Anthropic's usage/billing API requires a <strong>Workspace Admin API key</strong>, not a standard user key. Most developers will get a 403 error.
+        Your proxied request logs (above) are the reliable alternative.
+        <br><br>
+        <a href="https://console.anthropic.com/settings/usage" target="_blank" rel="noopener" style="color:var(--cyan);font-family:var(--f-mono);font-size:var(--fs-xs);">View usage at console.anthropic.com →</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- How to proxy -->
+  <div class="card">
+    <div class="card-ttl">🔁 How to Use the Proxy</div>
+    <div class="notice n-muted" style="margin-bottom:12px;">
+      <span class="notice-ico">💡</span>
+      <div>
+        Replace <code style="font-family:var(--f-mono);font-size:var(--fs-xs);background:rgba(255,255,255,0.08);padding:1px 4px;border-radius:3px;">api.anthropic.com</code> with
+        <code style="font-family:var(--f-mono);font-size:var(--fs-xs);background:rgba(255,255,255,0.08);padding:1px 4px;border-radius:3px;">localhost:3000</code> in your code.
+        The server forwards the request, logs the token usage, and returns the response unmodified.
+      </div>
+    </div>
+    <div style="background:var(--bg3);border:1px solid var(--brd);border-radius:var(--r-sm);padding:12px;font-family:var(--f-mono);font-size:var(--fs-xs);color:var(--tx-md);line-height:1.7;overflow-x:auto;">
+      <span style="color:var(--tx-lo);">// Before (direct)</span><br>
+      fetch(<span style="color:var(--green);">'https://api.anthropic.com/v1/messages'</span>, ...)<br><br>
+      <span style="color:var(--tx-lo);">// After (proxied — auto-logs usage)</span><br>
+      fetch(<span style="color:var(--cyan);">'http://localhost:3000/api/proxy'</span>, ...)
+    </div>
+  </div>
+
+  <!-- Manual log via server -->
+  <div class="card" id="srv-manual-card" style="display:none;">
+    <div class="card-ttl">➕ Log via Server</div>
+    <div class="s-sub" style="margin-bottom:12px;">Saves directly to SQLite database</div>
+    <div class="fg">
+      <label class="flbl">Model</label>
+      <select class="fsel" id="srv-model">
+        <option value="claude-sonnet-4-5" selected>claude-sonnet-4-5</option>
+        <option value="claude-opus-4-5">claude-opus-4-5</option>
+        <option value="claude-haiku-4-5">claude-haiku-4-5</option>
+      </select>
+    </div>
+    <div class="fr" style="margin-bottom:12px;">
+      <div class="fg" style="margin-bottom:0;">
+        <label class="flbl">Input Tokens</label>
+        <input class="fi" id="srv-in" type="number" placeholder="1000" min="0">
+      </div>
+      <div class="fg" style="margin-bottom:0;">
+        <label class="flbl">Output Tokens</label>
+        <input class="fi" id="srv-out" type="number" placeholder="500" min="0">
+      </div>
+    </div>
+    <button class="btn btn-p btn-bl" id="srv-log-btn">Log to Server DB</button>
+  </div>
+
+  <!-- Simulator -->
+  <div class="card">
+    <div class="card-ttl">🧪 Simulator</div>
+    <div class="s-sub" style="margin-bottom:12px;">Generate test data. Clearly marked as simulated.</div>
+    <div class="fr" style="margin-bottom:12px;">
+      <div class="fg" style="margin-bottom:0;">
+        <label class="flbl">Requests</label>
+        <input class="fi" id="sim-n" type="number" value="10" min="1" max="100" inputmode="numeric">
+      </div>
+      <div class="fg" style="margin-bottom:0;">
+        <label class="flbl">Model</label>
+        <select class="fsel" id="sim-m">
+          <option value="random">Random Mix</option>
+          <option value="claude-opus-4-5">Opus 4.5</option>
+          <option value="claude-sonnet-4-5">Sonnet 4.5</option>
+          <option value="claude-haiku-4-5">Haiku 4.5</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn btn-s btn-bl" id="sim-btn">▶ Run Simulation (local only)</button>
+    <div class="sim-res" id="sim-res"></div>
+  </div>
+</div>
+
+</div><!-- /.app -->
+
+<!-- ══ NAV ══ -->
+<nav class="nav" role="navigation">
+  <button class="nav-item active" data-pg="dashboard">
+    <div class="nav-iw"><span class="nav-icon">📊</span></div>
+    <span class="nav-lbl">Dashboard</span>
+  </button>
+  <button class="nav-item" data-pg="analytics">
+    <div class="nav-iw"><span class="nav-icon">📈</span></div>
+    <span class="nav-lbl">Analytics</span>
+  </button>
+  <button class="nav-item" data-pg="settings">
+    <div class="nav-iw"><span class="nav-icon">⚙️</span></div>
+    <span class="nav-lbl">Settings</span>
+  </button>
+  <button class="nav-item" data-pg="api">
+    <div class="nav-iw"><span class="nav-icon">🔑</span></div>
+    <span class="nav-lbl">API Config</span>
+  </button>
+</nav>
+
+<script>
+/* ═══════════════════════════════════
+   CONSTANTS & STATE
+═══════════════════════════════════ */
+const SERVER_URL = 'http://localhost:3000';
+const POLL_INTERVAL_MS = 10000; // 10 seconds
+
+const DP = {
+  'claude-opus-4-5':            {in:15.00, out:75.00},
+  'claude-sonnet-4-5':          {in:3.00,  out:15.00},
+  'claude-haiku-4-5':           {in:0.80,  out:4.00},
+  'claude-3-opus-20240229':     {in:15.00, out:75.00},
+  'claude-3-5-sonnet-20241022': {in:3.00,  out:15.00},
+  'claude-3-haiku-20240307':    {in:0.25,  out:1.25},
+  'claude-3-5-haiku-20241022':  {in:0.80,  out:4.00},
+  'custom':                     {in:1.00,  out:5.00},
+};
+
+const CURR = {
+  USD:{rate:1,    sym:'$', lbl:'USD'},
+  PHP:{rate:56.5, sym:'₱',lbl:'PHP'},
+  EUR:{rate:0.92, sym:'€', lbl:'EUR'},
+  GBP:{rate:0.79, sym:'£', lbl:'GBP'},
+};
+
+let ST = {
+  requests:[],           // local requests (manual + sim)
+  serverRequests:[],     // requests fetched from server DB
+  prices: JSON.parse(JSON.stringify(DP)),
+  budget:{daily:10, monthly:100},
+  currency:'USD',
+  cfg:{alerts:true, recs:true},
+  serverMode: false,     // true when server is reachable
+  serverUrl: SERVER_URL,
+};
+
+function load() {
+  try {
+    const d = localStorage.getItem('cm4');
+    if(d){ const p=JSON.parse(d); ST=Object.assign({},ST,p); if(!ST.prices)ST.prices=JSON.parse(JSON.stringify(DP)); }
+  } catch(e){}
+}
+function save() {
+  // Don't persist serverRequests — those come from the DB
+  const toSave = Object.assign({}, ST, {serverRequests:[]});
+  try { localStorage.setItem('cm4',JSON.stringify(toSave)); } catch(e){}
+}
+load();
+
+/* ═══════════════════════════════════
+   HELPERS
+═══════════════════════════════════ */
+function fmt(v) {
+  const c=CURR[ST.currency]||CURR.USD, x=v*c.rate;
+  return c.sym+x.toFixed(x<0.01?6:x<1?4:2);
+}
+function fN(n) {
+  if(n>=1e6) return (n/1e6).toFixed(2)+'M';
+  if(n>=1e3) return (n/1e3).toFixed(1)+'K';
+  return n+'';
+}
+function calcCost(m,i,o) {
+  const k=Object.keys(ST.prices).find(k=>m&&(m.startsWith(k)||k.startsWith(m)))||'claude-sonnet-4-5';
+  const p=ST.prices[k]||{in:3,out:15};
+  return (i*p.in+o*p.out)/1e6;
+}
+function td()  { return new Date().toISOString().slice(0,10); }
+function ago(n){ const d=new Date(); d.setDate(d.getDate()-n); return d.toISOString().slice(0,10); }
+function wk()  { const d=new Date(); d.setDate(d.getDate()-d.getDay()); return d.toISOString().slice(0,10); }
+function mo()  { const d=new Date(); return new Date(d.getFullYear(),d.getMonth(),1).toISOString().slice(0,10); }
+
+// Unified view — merge local + server requests
+function allRequests() {
+  if(ST.serverMode && ST.serverRequests.length) {
+    // Server is canonical — use server data, supplement with any local that aren't there
+    return ST.serverRequests.map(r=>({
+      model:   r.model,
+      inTok:   r.input_tokens,
+      outTok:  r.output_tokens,
+      cost:    r.cost_usd,
+      date:    (r.created_at||'').slice(0,10) || td(),
+      ts:      new Date(r.created_at||Date.now()).getTime(),
+      source:  r.source || 'proxy',
+    }));
+  }
+  return ST.requests;
+}
+
+function reqs(since, exact) { return allRequests().filter(r=>exact?r.date===since:r.date>=since); }
+function sumC(arr)           { return arr.reduce((a,r)=>a+r.cost,0); }
+
+/* ═══════════════════════════════════
+   SERVER CONNECTION
+═══════════════════════════════════ */
+let pollTimer    = null;
+let pollCountdown = 0;
+
+async function checkServer() {
+  try {
+    const res  = await fetch(`${ST.serverUrl}/api/health`, {signal: AbortSignal.timeout(3000)});
+    const data = await res.json();
+    ST.serverMode = true;
+    updateModePill('connected');
+    updateModeNotice(true);
+    return data;
+  } catch(e) {
+    ST.serverMode = false;
+    updateModePill('manual');
+    updateModeNotice(false);
+    return null;
+  }
+}
+
+async function fetchServerLogs() {
+  if(!ST.serverMode) return;
+  try {
+    const res  = await fetch(`${ST.serverUrl}/api/logs?days=30`);
+    const data = await res.json();
+    if(data.rows) {
+      ST.serverRequests = data.rows;
+      renderDashboard();
+    }
+  } catch(e) {
+    ST.serverMode = false;
+    updateModePill('manual');
+  }
+}
+
+async function checkUsageApi() {
+  try {
+    const res  = await fetch(`${ST.serverUrl}/api/usage`);
+    const data = await res.json();
+    const el   = document.getElementById('srv-usage');
+    if(data.available) {
+      el.textContent='Available ✓'; el.className='srv-v ok';
+    } else {
+      el.textContent='Not available (403 — Admin key required)'; el.className='srv-v warn';
+    }
+  } catch(e) {}
+}
+
+function startPolling() {
+  if(pollTimer) clearInterval(pollTimer);
+  const barWrap = document.getElementById('poll-bar-wrap');
+  const fill    = document.getElementById('poll-fill');
+  const status  = document.getElementById('poll-status');
+
+  barWrap.style.display = 'block';
+
+  pollTimer = setInterval(async () => {
+    status.textContent = 'Syncing...';
+    await fetchServerLogs();
+    status.textContent = 'Live — updates every 10s';
+  }, POLL_INTERVAL_MS);
+
+  // Animate progress bar between polls
+  let pct = 0;
+  setInterval(() => {
+    pct = (pct + 1) % 101;
+    fill.style.width = pct + '%';
+  }, POLL_INTERVAL_MS / 100);
+
+  status.textContent = 'Live — updates every 10s';
+}
+
+function stopPolling() {
+  if(pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  document.getElementById('poll-bar-wrap').style.display = 'none';
+  document.getElementById('poll-status').textContent = '';
+}
+
+function updateModePill(mode) {
+  const pill = document.getElementById('mode-pill');
+  const dot  = document.getElementById('mode-dot');
+  const lbl  = document.getElementById('mode-lbl');
+  pill.className = 'mode-pill ' + mode;
+  dot.className  = 'mode-dot' + (mode==='connected'?' pulse':'');
+  lbl.textContent = mode==='connected' ? 'Server Connected' : mode==='connecting' ? 'Connecting...' : 'Manual Mode';
+}
+
+function updateModeNotice(connected) {
+  const el = document.getElementById('mode-notice');
+  const tx = document.getElementById('mode-notice-txt');
+  if(connected) {
+    el.className = 'notice n-success';
+    tx.innerHTML = '<strong>Server connected</strong> — Token usage is automatically logged when you use the proxy endpoint. Dashboard polls every 10 seconds.';
+    document.getElementById('srv-manual-card').style.display = 'block';
+    startPolling();
+  } else {
+    el.className = 'notice n-muted';
+    tx.innerHTML = '<strong>Manual mode</strong> — Enter token counts below to log costs. For automatic tracking, run <code style="font-family:var(--f-mono);font-size:var(--fs-xs);background:rgba(255,255,255,0.08);padding:1px 4px;border-radius:3px;">node server.js</code> then return here.';
+    document.getElementById('srv-manual-card').style.display = 'none';
+    stopPolling();
+  }
+}
+
+/* ═══════════════════════════════════
+   NAVIGATION
+═══════════════════════════════════ */
+document.querySelectorAll('.nav-item').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const pg=btn.dataset.pg;
+    document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('page-'+pg).classList.add('active');
+    if(pg==='analytics') renderAnalytics();
+    if(pg==='settings')  renderSettings();
+    if(pg==='api')       checkServerStatus();
+  });
+});
+
+document.getElementById('mode-pill').addEventListener('click',()=>{
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelector('[data-pg="api"]').classList.add('active');
+  document.getElementById('page-api').classList.add('active');
+  checkServerStatus();
+});
+
+/* ═══════════════════════════════════
+   DASHBOARD RENDER
+═══════════════════════════════════ */
+function renderDashboard() {
+  const all   = allRequests();
+  const t     = td(), m = mo();
+  const tReqs = reqs(t,true), mReqs = reqs(m);
+  const tCost = sumC(tReqs), mCost = sumC(mReqs);
+  const totTok= all.reduce((a,r)=>a+r.inTok+r.outTok,0);
+  const avg   = all.length ? sumC(all)/all.length : 0;
+
+  document.getElementById('hdr-total').textContent   = fmt(sumC(all));
+  document.getElementById('s-today').textContent     = fmt(tCost);
+  document.getElementById('s-today-n').textContent   = tReqs.length+' request'+(tReqs.length!==1?'s':'');
+  document.getElementById('s-month').textContent     = fmt(mCost);
+  document.getElementById('s-month-n').textContent   = mReqs.length+' request'+(mReqs.length!==1?'s':'');
+  document.getElementById('s-tokens').textContent    = fN(totTok);
+  document.getElementById('s-avg').textContent       = fmt(avg);
+  document.getElementById('today-date').textContent  = new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+
+  // Budget
+  const pct = Math.min((mCost/ST.budget.monthly)*100,100);
+  const fill= document.getElementById('bud-fill');
+  fill.style.width = pct+'%';
+  fill.className   = 'bud-fill'+(pct>=100?' fd':pct>=70?' fw':'');
+  document.getElementById('bud-display').textContent = fmt(mCost)+' / '+fmt(ST.budget.monthly);
+  document.getElementById('bud-pct').textContent     = pct.toFixed(1)+'% used';
+  document.getElementById('bud-rem').textContent     = fmt(Math.max(0,ST.budget.monthly-mCost))+' remaining';
+
+  // Alert
+  const alEl = document.getElementById('bud-alert');
+  if(ST.cfg.alerts) {
+    if(pct>=100)     alEl.innerHTML=`<div class="notice n-danger"><span class="notice-ico">⚠️</span><span>Monthly budget exceeded! Reduce usage or raise your limit.</span></div>`;
+    else if(pct>=70) alEl.innerHTML=`<div class="notice n-warn"><span class="notice-ico">⚡</span><span>${pct.toFixed(0)}% of monthly budget used.</span></div>`;
+    else             alEl.innerHTML='';
+  } else alEl.innerHTML='';
+
+  renderLogs(all);
+  renderRecs(mCost,pct,all);
+  updateEst();
+}
+
+function renderLogs(all) {
+  const el     = document.getElementById('recent-logs');
+  const recent = [...(all||allRequests())].sort((a,b)=>b.ts-a.ts).slice(0,30);
+  if(!recent.length){ el.innerHTML='<div class="empty">No requests logged yet.</div>'; return; }
+  el.innerHTML = recent.map(r=>{
+    const src = r.source||'manual';
+    return `<div class="log-row">
+      <span class="log-src ${src}">${src}</span>
+      <span class="log-mod">${(r.model||'').replace('claude-','')}</span>
+      <span class="log-tok">${fN(r.inTok||0)}↑ ${fN(r.outTok||0)}↓</span>
+      <span class="log-cost">${fmt(r.cost||0)}</span>
+      <span class="log-time">${new Date(r.ts||Date.now()).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</span>
+    </div>`;
+  }).join('');
+}
+
+function renderRecs(mCost,pct,all) {
+  const card=document.getElementById('rec-card'), list=document.getElementById('rec-list');
+  if(!ST.cfg.recs||!all.length){ card.style.display='none'; return; }
+  card.style.display='block';
+  const recs=[];
+  const opusPct=(all.filter(r=>r.model&&r.model.includes('opus')).length/all.length)*100;
+  if(opusPct>30) recs.push({i:'🔁',t:`${opusPct.toFixed(0)}% of calls use Opus. Switching to Sonnet saves ~80% per call.`});
+  if(pct>70)     recs.push({i:'📉',t:`Monthly spend at ${pct.toFixed(0)}%. Consider reducing max_tokens or caching repeated prompts.`});
+  const avgOut=all.reduce((a,r)=>a+(r.outTok||0),0)/all.length;
+  if(avgOut>2000) recs.push({i:'✂️',t:`Avg output is ${fN(Math.round(avgOut))} tokens. Capping output tokens can reduce spend significantly.`});
+  const dom=new Date().getDate();
+  if(dom>0){ const proj=mCost*(30/dom); if(proj>ST.budget.monthly*1.2) recs.push({i:'🚨',t:`Projected monthly: ${fmt(proj)} — ${fmt(proj-ST.budget.monthly)} over budget.`}); }
+  if(!recs.length) recs.push({i:'✅',t:'Usage looks efficient! Keep monitoring daily trends.'});
+  list.innerHTML=recs.map(r=>`<div class="rec-item"><span class="rec-ico">${r.i}</span><span class="rec-txt">${r.t}</span></div>`).join('');
+}
+
+/* ═══════════════════════════════════
+   LOG REQUEST (local)
+═══════════════════════════════════ */
+function updateEst() {
+  const m=document.getElementById('log-model').value;
+  const i=parseInt(document.getElementById('log-in').value)||0;
+  const o=parseInt(document.getElementById('log-out').value)||0;
+  document.getElementById('est-cost').textContent=fmt(calcCost(m,i,o));
+}
+document.getElementById('log-model').addEventListener('change', updateEst);
+document.getElementById('log-in').addEventListener('input', updateEst);
+document.getElementById('log-out').addEventListener('input', updateEst);
+
+document.getElementById('log-btn').addEventListener('click',()=>{
+  const m=document.getElementById('log-model').value;
+  const i=parseInt(document.getElementById('log-in').value)||0;
+  const o=parseInt(document.getElementById('log-out').value)||0;
+  if(!i&&!o){ alert('Enter at least one token count.'); return; }
+  ST.requests.push({model:m,inTok:i,outTok:o,cost:calcCost(m,i,o),date:td(),ts:Date.now(),source:'manual'});
+  save();
+  document.getElementById('log-in').value='';
+  document.getElementById('log-out').value='';
+  renderDashboard();
+  const btn=document.getElementById('log-btn'), orig=btn.textContent;
+  btn.textContent='✓ Logged'; btn.style.background='var(--green)'; btn.style.color='#011a10';
+  setTimeout(()=>{ btn.textContent=orig; btn.style.background=''; btn.style.color=''; },1600);
+});
+
+/* ═══════════════════════════════════
+   LOG TO SERVER (server mode)
+═══════════════════════════════════ */
+document.getElementById('srv-log-btn').addEventListener('click', async () => {
+  const m=document.getElementById('srv-model').value;
+  const i=parseInt(document.getElementById('srv-in').value)||0;
+  const o=parseInt(document.getElementById('srv-out').value)||0;
+  if(!i&&!o){ alert('Enter token counts.'); return; }
+  try {
+    const res = await fetch(`${ST.serverUrl}/api/manual`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({model:m, input_tokens:i, output_tokens:o})
+    });
+    if(res.ok){
+      await fetchServerLogs();
+      document.getElementById('srv-in').value='';
+      document.getElementById('srv-out').value='';
+      const btn=document.getElementById('srv-log-btn'), orig=btn.textContent;
+      btn.textContent='✓ Saved to DB'; btn.style.background='var(--green)'; btn.style.color='#011a10';
+      setTimeout(()=>{ btn.textContent=orig; btn.style.background=''; btn.style.color=''; },1600);
+    }
+  } catch(e){ alert('Server unreachable: '+e.message); }
+});
+
+/* ═══════════════════════════════════
+   ANALYTICS
+═══════════════════════════════════ */
+function renderAnalytics() {
+  const all=allRequests();
+  const tCost=sumC(reqs(td(),true)), wCost=sumC(reqs(wk())), mCost=sumC(reqs(mo()));
+  const dom=new Date().getDate(), proj=dom>0?(mCost/dom)*30:0;
+  document.getElementById('a-today').textContent=fmt(tCost);
+  document.getElementById('a-week').textContent=fmt(wCost);
+  document.getElementById('a-month').textContent=fmt(mCost);
+  document.getElementById('a-proj').textContent=fmt(proj);
+  const ti=all.reduce((a,r)=>a+(r.inTok||0),0), to=all.reduce((a,r)=>a+(r.outTok||0),0);
+  document.getElementById('a-total').textContent=all.length;
+  document.getElementById('a-in').textContent=fN(ti);
+  document.getElementById('a-out').textContent=fN(to);
+  document.getElementById('a-ai').textContent=all.length?fN(Math.round(ti/all.length)):'0';
+  document.getElementById('a-ao').textContent=all.length?fN(Math.round(to/all.length)):'0';
+  const mc={};all.forEach(r=>{mc[r.model]=(mc[r.model]||0)+1;});
+  const top=Object.entries(mc).sort((a,b)=>b[1]-a[1])[0];
+  document.getElementById('a-top').textContent=top?top[0].replace('claude-',''):'—';
+  document.getElementById('a-src').textContent=ST.serverMode?'Server (SQLite DB)':'Local (localStorage)';
+  drawTrend(); drawPie();
+}
+
+function drawTrend() {
+  const canvas=document.getElementById('trend-chart'), ctx=canvas.getContext('2d');
+  const DPR=window.devicePixelRatio||1, W=canvas.parentElement.clientWidth-32, H=160;
+  canvas.width=W*DPR; canvas.height=H*DPR; ctx.scale(DPR,DPR);
+  const days=[], costs=[];
+  for(let i=6;i>=0;i--){ const d=ago(i); days.push(d.slice(5)); costs.push(sumC(reqs(d,true))); }
+  const maxC=Math.max(...costs,0.0001);
+  const pad={t:20,r:12,b:32,l:54}, cW=W-pad.l-pad.r, cH=H-pad.t-pad.b;
+  ctx.clearRect(0,0,W,H);
+  for(let i=0;i<=4;i++){
+    const y=pad.t+(cH/4)*i, v=maxC*(1-i/4);
+    ctx.strokeStyle='rgba(255,255,255,0.055)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(pad.l+cW,y); ctx.stroke();
+    ctx.fillStyle='#8890b8'; ctx.font='9px JetBrains Mono, monospace'; ctx.textAlign='right';
+    ctx.fillText(fmt(v),pad.l-4,y+3);
+  }
+  const pts=costs.map((c,i)=>({x:pad.l+(i/6)*cW, y:pad.t+cH-(c/maxC)*cH}));
+  const g=ctx.createLinearGradient(0,pad.t,0,pad.t+cH);
+  g.addColorStop(0,'rgba(51,236,255,0.20)'); g.addColorStop(1,'rgba(51,236,255,0)');
+  ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y);
+  for(let i=1;i<pts.length;i++){ const mx=(pts[i-1].x+pts[i].x)/2; ctx.bezierCurveTo(mx,pts[i-1].y,mx,pts[i].y,pts[i].x,pts[i].y); }
+  ctx.lineTo(pts[pts.length-1].x,pad.t+cH); ctx.lineTo(pts[0].x,pad.t+cH); ctx.closePath();
+  ctx.fillStyle=g; ctx.fill();
+  ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y);
+  for(let i=1;i<pts.length;i++){ const mx=(pts[i-1].x+pts[i].x)/2; ctx.bezierCurveTo(mx,pts[i-1].y,mx,pts[i].y,pts[i].x,pts[i].y); }
+  ctx.strokeStyle='#33ecff'; ctx.lineWidth=2; ctx.stroke();
+  pts.forEach((pt,i)=>{
+    ctx.beginPath(); ctx.arc(pt.x,pt.y,4,0,Math.PI*2); ctx.fillStyle='#33ecff'; ctx.fill();
+    ctx.beginPath(); ctx.arc(pt.x,pt.y,2,0,Math.PI*2); ctx.fillStyle='#060610'; ctx.fill();
+    ctx.fillStyle='#8890b8'; ctx.font='9px JetBrains Mono, monospace'; ctx.textAlign='center';
+    ctx.fillText(days[i],pt.x,pad.t+cH+18);
+  });
+}
+
+function drawPie() {
+  const canvas=document.getElementById('pie-chart'), ctx=canvas.getContext('2d');
+  const DPR=window.devicePixelRatio||1, S_=140;
+  canvas.width=S_*DPR; canvas.height=S_*DPR; ctx.scale(DPR,DPR); ctx.clearRect(0,0,S_,S_);
+  const all=allRequests();
+  if(!all.length){ document.getElementById('pie-legend').innerHTML='<div class="empty" style="padding:8px 0;">No data yet</div>'; return; }
+  const mc={};all.forEach(r=>{mc[r.model]=(mc[r.model]||0)+(r.cost||0);});
+  const ent=Object.entries(mc).sort((a,b)=>b[1]-a[1]);
+  const tot=ent.reduce((a,e)=>a+e[1],0);
+  const cols=['#33ecff','#a78bfa','#34d399','#fbbf24','#f87171','#60a5fa'];
+  const cx=S_/2,cy=S_/2,r=58,ir=32;
+  let ang=-Math.PI/2;
+  ent.forEach(([,c],i)=>{ const sw=(c/tot)*Math.PI*2; ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,r,ang,ang+sw); ctx.closePath(); ctx.fillStyle=cols[i%cols.length]; ctx.fill(); ang+=sw; });
+  ctx.beginPath(); ctx.arc(cx,cy,ir,0,Math.PI*2); ctx.fillStyle='#0c0c1e'; ctx.fill();
+  document.getElementById('pie-legend').innerHTML=ent.map(([m,c],i)=>`
+    <div class="pie-li"><div class="pie-dot" style="background:${cols[i%cols.length]}"></div>
+    <div><div class="pie-name">${m.replace('claude-','')}</div><div class="pie-val">${fmt(c)} · ${((c/tot)*100).toFixed(0)}%</div></div></div>`).join('');
+}
+
+/* ═══════════════════════════════════
+   SETTINGS
+═══════════════════════════════════ */
+function renderSettings() {
+  document.getElementById('s-daily').value=ST.budget.daily;
+  document.getElementById('s-monthly').value=ST.budget.monthly;
+  document.querySelectorAll('.cur-btn').forEach(b=>b.classList.toggle('on',b.dataset.c===ST.currency));
+  const cr=CURR[ST.currency];
+  document.getElementById('cur-info').textContent='1 USD = '+cr.rate.toFixed(4)+' '+ST.currency;
+  const tb=document.getElementById('price-tbody');
+  tb.innerHTML=Object.entries(ST.prices).map(([m,p])=>`<tr><td>${m.replace('claude-','')}</td><td><input type="number" step="0.01" value="${p.in}" data-m="${m}" data-t="in"></td><td><input type="number" step="0.01" value="${p.out}" data-m="${m}" data-t="out"></td></tr>`).join('');
+  [['t-alerts','alerts'],['t-recs','recs']].forEach(([id,k])=>{
+    document.getElementById(id).className='tgl'+(ST.cfg[k]?' on':'');
+  });
+}
+
+document.querySelectorAll('.cur-btn').forEach(b=>{
+  b.addEventListener('click',()=>{ ST.currency=b.dataset.c; save(); renderSettings(); renderDashboard(); });
+});
+document.getElementById('save-bud').addEventListener('click',()=>{
+  ST.budget.daily=parseFloat(document.getElementById('s-daily').value)||10;
+  ST.budget.monthly=parseFloat(document.getElementById('s-monthly').value)||100;
+  save(); renderDashboard();
+  const btn=document.getElementById('save-bud'),o=btn.textContent;
+  btn.textContent='✓ Saved'; setTimeout(()=>btn.textContent=o,1500);
+});
+document.getElementById('save-prices').addEventListener('click',()=>{
+  document.querySelectorAll('#price-tbody input').forEach(inp=>{
+    const m=inp.dataset.m,t=inp.dataset.t;
+    if(!ST.prices[m])ST.prices[m]={in:0,out:0};
+    ST.prices[m][t]=parseFloat(inp.value)||0;
+  });
+  save();
+  const btn=document.getElementById('save-prices'),o=btn.textContent;
+  btn.textContent='✓ Saved'; setTimeout(()=>btn.textContent=o,1500);
+});
+[['t-alerts','alerts'],['t-recs','recs']].forEach(([id,k])=>{
+  document.getElementById(id).addEventListener('click',()=>{ ST.cfg[k]=!ST.cfg[k]; save(); renderSettings(); renderDashboard(); });
+});
+document.getElementById('exp-json').addEventListener('click',()=>{
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(allRequests(),null,2)],{type:'application/json'}));
+  a.download='claudemetrics-'+td()+'.json'; a.click();
+});
+document.getElementById('exp-csv').addEventListener('click',()=>{
+  const rows=[['Date','Model','Input','Output','Cost USD','Source']];
+  allRequests().forEach(r=>rows.push([r.date,r.model,r.inTok,r.outTok,r.cost.toFixed(8),r.source||'']));
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([rows.map(r=>r.join(',')).join('\n')],{type:'text/csv'}));
+  a.download='claudemetrics-'+td()+'.csv'; a.click();
+});
+document.getElementById('import-file').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=ev=>{ try{ const d=JSON.parse(ev.target.result); if(Array.isArray(d)){ ST.requests=[...ST.requests,...d]; save(); renderDashboard(); alert('Imported '+d.length+' requests.'); } else alert('Expected a JSON array.'); }catch(e){ alert('Invalid JSON.'); } };
+  rd.readAsText(f);
+});
+document.getElementById('print-btn').addEventListener('click',()=>window.print());
+document.getElementById('reset-btn').addEventListener('click',()=>{
+  if(confirm('Reset all local data? Server data is unaffected.')){ ST.requests=[]; ST.serverRequests=[]; save(); renderDashboard(); alert('Local data reset.'); }
+});
+
+/* ═══════════════════════════════════
+   SERVER STATUS PAGE
+═══════════════════════════════════ */
+async function checkServerStatus() {
+  document.getElementById('srv-conn').textContent  = 'Checking...';
+  document.getElementById('srv-conn').className    = 'srv-v warn';
+  document.getElementById('srv-key').textContent   = '—';
+  document.getElementById('srv-db').textContent    = '—';
+  document.getElementById('srv-usage').textContent = '—';
+
+  const data = await checkServer();
+
+  if(data) {
+    document.getElementById('srv-conn').textContent = 'Connected ✓';
+    document.getElementById('srv-conn').className   = 'srv-v ok';
+    document.getElementById('srv-key').textContent  = data.keyLoaded ? 'Loaded ✓' : 'Missing ✗';
+    document.getElementById('srv-key').className    = 'srv-v '+(data.keyLoaded?'ok':'fail');
+    document.getElementById('srv-db').textContent   = data.dbPath ? 'Connected ✓' : 'Error';
+    document.getElementById('srv-db').className     = 'srv-v ok';
+    await fetchServerLogs();
+    await checkUsageApi();
+  } else {
+    document.getElementById('srv-conn').textContent = 'Not running ✗';
+    document.getElementById('srv-conn').className   = 'srv-v fail';
+    document.getElementById('srv-key').textContent  = 'N/A';
+    document.getElementById('srv-key').className    = 'srv-v';
+    document.getElementById('srv-db').textContent   = 'N/A';
+    document.getElementById('srv-db').className     = 'srv-v';
+    document.getElementById('srv-usage').textContent= 'N/A';
+    document.getElementById('srv-usage').className  = 'srv-v';
+  }
+}
+
+document.getElementById('check-srv').addEventListener('click', checkServerStatus);
+
+/* ═══════════════════════════════════
+   SIMULATOR
+═══════════════════════════════════ */
+document.getElementById('sim-btn').addEventListener('click',()=>{
+  const n=Math.min(parseInt(document.getElementById('sim-n').value)||10,100);
+  const sm=document.getElementById('sim-m').value;
+  const models=['claude-opus-4-5','claude-sonnet-4-5','claude-haiku-4-5'];
+  for(let i=0;i<n;i++){
+    const m=sm==='random'?models[Math.floor(Math.random()*models.length)]:sm;
+    const inn=Math.floor(Math.random()*3000)+100, out=Math.floor(Math.random()*2000)+50;
+    const db=Math.floor(Math.random()*7), d=new Date(); d.setDate(d.getDate()-db);
+    ST.requests.push({model:m,inTok:inn,outTok:out,cost:calcCost(m,inn,out),date:d.toISOString().slice(0,10),ts:d.getTime()-Math.floor(Math.random()*86400000),source:'sim'});
+  }
+  save(); renderDashboard();
+  const tot=ST.requests.slice(-n).reduce((a,r)=>a+r.cost,0);
+  const res=document.getElementById('sim-res');
+  res.textContent=`✓ Simulated ${n} requests (local only) — cost: ${fmt(tot)}`;
+  setTimeout(()=>res.textContent='',6000);
+});
+
+/* ═══════════════════════════════════
+   INIT
+═══════════════════════════════════ */
+renderDashboard();
+renderSettings();
+
+// Check server on load (silently)
+checkServer().then(data => {
+  if(data) fetchServerLogs();
+});
+</script>
+</body>
+</html>

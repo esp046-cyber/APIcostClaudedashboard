@@ -1,208 +1,280 @@
-# APIcostClaudedashboard
-ClaudeMetrics PWA dashboard is ready. Here's what's packed into this single file:
-4 Tabs via bottom nav (24px icons):
-📊 Dashboard — live stat cards, budget meter with color warnings, request logger with real-time cost estimation, recent log feed, AI recommendations
-📈 Analytics — 7-day Canvas trend chart, model cost pie chart, weekly/monthly projections, request statistics
-⚙️ Settings — budget limits, currency toggle (USD/PHP/EUR/GBP), editable pricing table per model, JSON/CSV export, import, reset, print-to-PDF
-🔑 API Config — masked API key storage, usage type, simulation mode to populate demo data
-Key features:
-Full PWA with inline Service Worker + Web App Manifest (installable, offline-capable)
-Dark glassmorphism UI with cyan/purple neon accents
-Budget alerts at 70% (orange) and 100% (red pulsing)
-AI recommendations ("Switch to Haiku", "Cap output tokens", etc.)
-All data in localStorage — nothing sent anywhere
-Run the simulator on the API Config tab to instantly populate charts with realistic data
-fix the color text and background contrast! use triple A, use ui/ux improvements! use only 4 fontsize, use only 2 font style, tell me first!
+# ⚡ ClaudeMetrics — API Cost Tracker
 
-Proposed Fixes
-Typography System (2 fonts, 4 sizes only)
-Font 1: 'JetBrains Mono', 'Courier New', monospace → numbers, values, code, badges, labels
-Font 2: 'Inter', 'SF Pro Display', -apple-system, sans-serif → UI text, body, headings, buttons
-Size Token
-Value
-Usage
---fs-xs
-10px
-Labels, badges, timestamps, metadata
---fs-sm
-12px
-Secondary text, sub-labels, table cells
---fs-base
-14px
-Body text, form inputs, nav labels
---fs-lg
-20px
-Stat values, section headings
+A two-mode Claude API cost tracker: **manual entry** (no server needed) and **auto-logging** via a local proxy server that stores everything in SQLite.
 
+---
 
-WCAG AAA Contrast Fixes
-Current problems and fixes:
-Element
-Current
-Fix
-Muted text
-rgba(240,240,255,0.45) → ~3.5:1
-→ rgba(255,255,255,0.70) → 7:1+ ✅
-Card borders as text
-too faint
-Remove as text containers
-Cyan on dark bg
-#00e5ff on #07070d → OK for large, fail small
-→ boost to #33ecff + only use on 12px+
-Stat values
-Fine at 22px
-Increase muted sub-values contrast
-Nav labels inactive
-too dim
-→ rgba(255,255,255,0.60)
-Table text
-11px muted → fails
-→ 12px + rgba(255,255,255,0.75)
-Alert text
-colour on translucent bg
-→ solid text colour, lighter bg
+## What this actually is (honest description)
 
+| Mode | How it works | What's "real-time" |
+|------|-------------|-------------------|
+| **Manual** | You enter token counts yourself | Nothing — you type the data |
+| **Server (proxy)** | Your app calls `localhost:3000/api/proxy` instead of `api.anthropic.com` — the server forwards the call, reads token usage from the response, and saves it to SQLite | ✅ Automatic — logged on every API call |
 
-UI/UX Improvements
-Consistent spacing — 8px base grid everywhere
-Tap targets — all interactive elements ≥ 44px height
-Input states — clear focus rings, error states
-Card hierarchy — primary/secondary distinction, not all same weight
-Budget meter labels — clearer percentage display
-Log entry readability — better column alignment
-Nav active state — stronger indicator beyond just colour
-Section headers — unified, scannable
+> **Why not pull from Anthropic's billing API?**
+> Anthropic's `/v1/usage` endpoint requires a **Workspace Admin API key**, not a standard user key. Most developers get a `403 Forbidden`. The proxy approach is the reliable alternative — it logs usage from the actual API response.
 
-Here's what was applied across the board:
-Typography (2 fonts, 4 sizes — strict)
-Inter — all UI: headings, body, labels, buttons, nav, toggles
-JetBrains Mono — all data: values, numbers, badges, timestamps, code, chart axes
-10px → labels, badges, metadata, timestamps
-12px → secondary text, table cells, button text, log entries, rec text
-14px → body inputs, selects, section sub-text, nav labels
-20px → stat values, section headings only
-WCAG AAA Contrast (all ≥ 7:1 on #060610)
---tx-hi: #ffffff → 21:1 — primary values, headings
---tx-md: #c8cce8 → 9.5:1 — body, form labels, body text
---tx-lo: #8890b8 → 7.1:1 — muted/secondary (AAA minimum floor)
-Accent --cyan: #33ecff → 8.4:1 on dark background
-All accent colors re-picked to clear AAA on #060610
-UX Improvements
-All interactive elements have min-height: 44px for accessible tap targets
-Clear focus rings (3px cyan outline) on all inputs
-Consistent 8px base spacing grid throughout
-Budget meter labels always legible (mono font, AAA color)
-Log entries use a proper grid layout — no more misaligned columns
-Nav active state has both top border glow + icon background highlight
-Form selects have custom arrow indicator
-Button feedback: log button turns green on success
+---
 
-❌ Is this "real-time" in the true sense?
-No — not currently. Here's what it actually does vs. what "real-time" would mean:
-What it does NOW
-What "real-time" would mean
-You manually type token counts
-App automatically fetches usage from Anthropic
-You press a button to log a request
-Usage logs instantly when an API call happens
-Costs are calculated locally from what you enter
-Costs are pulled from Anthropic's billing API
-The simulator fakes data
-Actual API responses drive the dashboard
+## Files
 
-Why? The Anthropic API does not currently expose a public real-time usage/billing endpoint that can be queried from a browser. So true real-time monitoring would require a backend server sitting between your app and Anthropic's systems.
+```
+claudemetrics/
+├── server.js        ← Node.js/Express backend
+├── index.html       ← Dashboard (served by server OR opened directly)
+├── package.json     ← Dependencies
+├── .env.example     ← Copy to .env and add your API key
+├── .env             ← Your secrets (never commit this)
+├── usage.db         ← SQLite database (auto-created on first run)
+└── README.md
+```
 
-🔒 Is it safe?
-Mostly yes, with caveats:
-✅ Safe things:
-API key is stored in localStorage — stays on your device only
-No network requests are made — everything runs in-browser
-No third-party scripts, no CDN calls (except Google Fonts)
-No data is ever sent anywhere
-⚠️ Caveats:
-localStorage is accessible to any JavaScript running on the same origin — it is not encrypted
-If someone has physical access to your browser/device, they could read your API key from DevTools
-This is a client-side HTML file — there is no server, no authentication, no audit log
-🔴 What would make it truly safe for production:
-Store the API key server-side, never in the browser
-Use environment variables or a secrets manager
-Add HTTPS + auth before showing any billing data
+---
 
-Bottom line
-Claim
-Reality
-"Real-time monitoring"
-Manual entry + local calculation
-"Secure API key storage"
-LocalStorage — safe for personal use, not for teams
-"Cost accuracy"
-Accurate if you enter the right token counts
-"Offline PWA"
-✅ Fully true
+## Quick Start
 
-Should I build a more honest version — labeling it clearly as a manual cost tracker with a note about what a true real-time integration would need? Or would you like me to add a proxy/backend approach using a simple Node.js or Python server that could actually fetch from Anthropic's API?
-can you do both?
-12:04 PM
-Great! Let me clarify what "both" means before I build anything:
-Q: For the dashboard app — which version(s) do you want? (Select all that apply) A: Honest manual tracker (relabeled, no fake 'real-time' claims), Add a backend server (Node.js or Python) for true API integration
-Q: For the backend server, which language do you prefer? A: Node.js (Express)
-Q: What should the backend actually do? (Select all that apply) A: Proxy Anthropic API calls & auto-log token usage, Fetch usage/billing data from Anthropic (if available), Store logs in a real database (SQLite), Serve the dashboard HTML itself
+### 1. Install dependencies
 
-Build Plan
-File 1: index.html — Honest Manual Tracker
-Remove all fake "real-time" language → relabeled as "API Cost Tracker"
-Add clear UI notice: "Manual entry mode — log requests yourself"
-Add a "Connect to Server" toggle that switches to live mode when the backend is running
-Keep all existing features (budget, charts, export, PWA)
-File 2: server.js — Node.js/Express Backend
-Four real jobs:
-Proxy — receives your API calls, forwards to Anthropic, auto-logs token usage from the response headers/body
-Usage fetch — hits https://api.anthropic.com/v1/usage (Anthropic's billing endpoint, if your key has access)
-SQLite storage — persists every proxied request to a real DB (usage.db)
-Serve — hosts index.html at localhost:3000
-File 3: README.md
-Setup instructions
-How to proxy your Claude calls through the server
-Security notes (API key in .env, never in frontend)
-What Anthropic's API actually exposes vs. doesn't
-Architecture
-Your App → POST /api/proxy → server.js → Anthropic API
-                               ↓
-                           SQLite DB
-                               ↓
-           GET /api/logs ← Dashboard (live polling every 10s)
-Honest labels throughout:
-Old (misleading)
-New (accurate)
-"Real-Time Monitoring"
-"API Cost Tracker"
-"Live" badge
-"Manual" or "Connected" depending on mode
-Simulated data as demo
-Clearly marked "Simulation"
-"Real-time cost estimation"
-"Cost calculation"
-
-
-Ready to build all 3 files?
-Q: Proceed with this plan? A: Yes, build all 3 files now
-
-What you got
-index.html — Honest dashboard with two modes:
-Manual mode (no server) — opens directly in browser, uses localStorage, clearly labeled "manual entry"
-Server connected mode — auto-detects the backend, polls every 10s, shows a green "Server Connected" pill, source-tags every log row as proxy, manual, or sim
-server.js — Node.js/Express backend that:
-Proxies your API calls to Anthropic and auto-logs token usage from the response
-Stores everything in SQLite (usage.db) with a daily aggregation table
-Tries the Anthropic usage API and honestly tells you if it 403s (it will for standard keys)
-Serves index.html at localhost:3000
-CORS-locked to localhost only
-package.json + .env.example + README.md — complete setup
-
-To run it
-bash
+```bash
 npm install
-cp .env.example .env        # add your API key
-node server.js              # starts at localhost:3000
-Then in your code, change api.anthropic.com → localhost:3000 and every call auto-logs to the dashboard.
+```
 
+Installs: `express`, `better-sqlite3`, `node-fetch`, `dotenv`
+
+**Requirements:** Node.js ≥ 18
+
+---
+
+### 2. Add your API key
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env`:
+```
+ANTHROPIC_API_KEY=sk-ant-api03-your-real-key-here
+PORT=3000
+```
+
+> ⚠️ **Your API key never touches the browser.** It lives in `.env` and is only used server-side to forward requests to Anthropic.
+
+---
+
+### 3. Start the server
+
+```bash
+node server.js
+# or for auto-reload during development:
+node --watch server.js
+```
+
+Output:
+```
+╔══════════════════════════════════════════╗
+║       ClaudeMetrics Server               ║
+╠══════════════════════════════════════════╣
+║  Dashboard  →  http://localhost:3000     ║
+║  Proxy URL  →  http://localhost:3000/api/proxy  ║
+║  Health     →  http://localhost:3000/api/health ║
+╠══════════════════════════════════════════╣
+║  API Key loaded: ✅ YES                  ║
+╚══════════════════════════════════════════╝
+```
+
+---
+
+### 4. Open the dashboard
+
+```
+http://localhost:3000
+```
+
+The dashboard auto-detects the server and switches to **"Server Connected"** mode. It polls every 10 seconds for new data.
+
+---
+
+## How to Use the Proxy
+
+This is the key feature. Replace `api.anthropic.com` with `localhost:3000` in your code:
+
+### JavaScript / Node.js
+
+```js
+// BEFORE (direct to Anthropic)
+const response = await fetch('https://api.anthropic.com/v1/messages', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'anthropic-version': '2023-06-01',
+    'x-api-key': process.env.ANTHROPIC_API_KEY,
+  },
+  body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 1024, messages: [...] }),
+});
+
+// AFTER (through proxy — auto-logs usage)
+const response = await fetch('http://localhost:3000/api/proxy', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  // No API key needed here — server adds it
+  body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 1024, messages: [...] }),
+});
+```
+
+The proxy:
+1. Adds your API key from `.env`
+2. Forwards the request to Anthropic
+3. Reads `input_tokens` and `output_tokens` from the response
+4. Saves them to `usage.db`
+5. Returns the original Anthropic response unmodified
+
+### Python
+
+```python
+import requests
+
+# AFTER (through proxy)
+response = requests.post(
+    'http://localhost:3000/api/proxy',
+    json={
+        'model': 'claude-sonnet-4-5',
+        'max_tokens': 1024,
+        'messages': [{'role': 'user', 'content': 'Hello!'}]
+    }
+)
+data = response.json()
+```
+
+### Streaming
+
+Streaming is supported. The server parses SSE events to extract token counts from `message_start` events.
+
+```js
+const response = await fetch('http://localhost:3000/api/proxy', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    model: 'claude-sonnet-4-5',
+    max_tokens: 1024,
+    stream: true,
+    messages: [...]
+  }),
+});
+// Handle as normal SSE stream — token logging happens server-side
+```
+
+---
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET`  | `/api/health` | Server status + key loaded check |
+| `POST` | `/api/proxy` | Proxy to Anthropic + auto-log |
+| `GET`  | `/api/logs` | All logged requests (JSON) |
+| `GET`  | `/api/logs?days=7&limit=100` | Filtered logs |
+| `POST` | `/api/manual` | Manually log a request |
+| `GET`  | `/api/summary` | Daily cost summaries for charts |
+| `GET`  | `/api/usage` | Attempt Anthropic usage API (may 403) |
+| `GET`  | `/api/export?format=json` | Export all logs as JSON |
+| `GET`  | `/api/export?format=csv` | Export all logs as CSV |
+| `DELETE` | `/api/logs` | Delete all logs |
+
+---
+
+## Security Notes
+
+### What IS safe ✅
+
+- **API key in `.env` only** — never sent to the browser, never in responses
+- **CORS locked to localhost** — the server rejects requests from any non-localhost origin
+- **Local-only** — nothing is sent to any external service except Anthropic (via proxy)
+- **SQLite on disk** — your data stays on your machine
+
+### What is NOT safe for production ⚠️
+
+- **No authentication** — anyone on your network who can reach port 3000 can call the proxy
+- **No rate limiting** — a malicious caller could run up your API bill
+- **HTTP only** — not HTTPS (fine for localhost, not for public deployment)
+- **Single-user** — no multi-tenant support
+
+### If you want to deploy publicly
+
+1. Add API key authentication middleware
+2. Enable HTTPS (use nginx or Caddy as a reverse proxy)
+3. Add rate limiting (e.g., `express-rate-limit`)
+4. Add request signing or an allowlist
+5. Move to a proper secrets manager (AWS Secrets Manager, etc.)
+
+---
+
+## Manual Mode (no server)
+
+Open `index.html` directly in a browser (double-click or `file://...`). Everything works offline:
+
+- Enter token counts manually in the Log Request form
+- Data saved to `localStorage`
+- No server, no API key, no internet required
+- Works as a PWA (installable on mobile)
+
+---
+
+## Database Schema
+
+```sql
+-- Every logged request
+CREATE TABLE requests (
+  id                  INTEGER PRIMARY KEY,
+  request_id          TEXT UNIQUE,
+  model               TEXT,
+  input_tokens        INTEGER,
+  output_tokens       INTEGER,
+  cache_read_tokens   INTEGER,
+  cache_write_tokens  INTEGER,
+  cost_usd            REAL,
+  source              TEXT,   -- 'proxy' | 'manual' | 'sim'
+  endpoint            TEXT,
+  created_at          TEXT
+);
+
+-- Aggregated per day (fast dashboard queries)
+CREATE TABLE daily_summary (
+  date                TEXT PRIMARY KEY,
+  total_cost          REAL,
+  total_requests      INTEGER,
+  total_input_tokens  INTEGER,
+  total_output_tokens INTEGER,
+  updated_at          TEXT
+);
+```
+
+---
+
+## Anthropic Usage API (why it probably won't work)
+
+The server tries `GET https://api.anthropic.com/v1/usage` with your key. Here's what you'll get:
+
+| Key type | Result |
+|----------|--------|
+| Standard user API key | `403 Forbidden` |
+| Workspace Admin key | ✅ Returns usage data |
+
+Most developers have standard keys. The proxy approach is the reliable alternative — it logs usage from every actual API response automatically.
+
+To check your key type: [console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys)
+
+---
+
+## Add to .gitignore
+
+```
+.env
+usage.db
+node_modules/
+```
+
+---
+
+## License
+
+MIT — use freely, attribution appreciated.
